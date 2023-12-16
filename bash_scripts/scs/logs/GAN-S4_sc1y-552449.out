@@ -1,0 +1,69 @@
+Running prime number generator program on 40 CPU cores
+{'cal_ratio': 0.25,
+ 'd': 10,
+ 'is_homo': False,
+ 'n': 1000,
+ 'ntest': 1000,
+ 'rho': 0.9}
+  0%|          | 0/100 [00:00<?, ?it/s] 30%|███       | 30/100 [00:00<00:01, 65.79it/s] 30%|███       | 30/100 [00:19<00:01, 65.79it/s]R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+ 60%|██████    | 60/100 [01:14<00:58,  1.45s/it]R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+R[write to console]: Loading required namespace: gbm
+
+ 90%|█████████ | 90/100 [02:26<00:18,  1.90s/it]100%|██████████| 100/100 [02:26<00:00,  1.47s/it]
+Save to /data/rajlab1/user_data/jin/MyResearch/DG-CITE_paper/bash_scripts/../mypkg/../results/demo_setting4_sc1y/res_demo.pkl

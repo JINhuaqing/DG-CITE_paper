@@ -61,7 +61,6 @@ def sdfun(X, is_homo=True):
     Returns:
     numpy.ndarray: Similarity scores.
     """
-    is_homo = False
     if is_homo:
         sds = np.ones(X.shape[0])
     else:
@@ -110,4 +109,5 @@ def get_simu_data(n, d, rho=0, is_homo=True, is_condition=False):
     dataset.Y = Y
     dataset.Y1 = Y1
     dataset.T = T
+    dataset.tau = tau
     return dataset
