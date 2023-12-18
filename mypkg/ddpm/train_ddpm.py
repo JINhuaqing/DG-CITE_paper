@@ -173,8 +173,6 @@ class TrainDDPM():
                     
     def get_opt_model(self, ws=20, m_tol=0.10):
         """Select the best model based on the clossness to the theoretical loss values
-           D_loss = -2*log(0.5) = 1.386
-           G_loss = -log(0.5) = 0.693
            args: 
                ws: window size
                m_tol: tolorance of the mean deviating from smallest val loss
