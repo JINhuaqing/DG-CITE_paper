@@ -6,6 +6,7 @@ from easydict import EasyDict as edict
 from tqdm import trange
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ExponentialLR 
+import pdb
 import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -48,6 +49,8 @@ class TrainDDPM():
             "lr_step": 1000, 
             # in epoch
             "test_intv": 100, 
+            # regularization of adam
+            "weight_decay": 1e-2
         })
         
         for key in input_params.keys():
@@ -77,27 +80,31 @@ class TrainDDPM():
         self.ddpm.to(params_ddpm.device);
         
         # the optim and loss for training
-        self.optim = torch.optim.Adam(self.ddpm.parameters(), lr=params_ddpm.lr);
+        #self.optim = torch.optim.Adam(self.ddpm.parameters(), lr=params_ddpm.lr);
+        self.optim = torch.optim.AdamW(self.ddpm.parameters(), lr=params_ddpm.lr, weight_decay=params_ddpm.weight_decay);
         self.lr_scheduler = ExponentialLR(self.optim, gamma=params_ddpm.lr_gamma, verbose=verbose) 
         
         if verbose:
             logger.info(f"The params is {params_ddpm}")
             
-        self.data_train_loader = DataLoader(data_train, batch_size=params_ddpm.batch_size, shuffle=True)
+        self.data_train_loader = DataLoader(data_train, 
+                                            batch_size=params_ddpm.batch_size, 
+                                            shuffle=True,
+                                            generator=torch.Generator(device=params_ddpm.device))
         self.params_ddpm = params_ddpm
         self.dftype = torch.get_default_dtype();
         self.verbose = verbose
         self.losses = [] # loss
         self.losses_sm = [] # smoother version of loss
-        self.losses_test = [] # test error
+        self.losses_val = [] # test error
         self.prefix = prefix
         self.save_dir = save_dir
             
             
-    def train(self, n_epoch, data_test=None, save_snapshot=True):
+    def train(self, n_epoch, data_val=None, save_snapshot=True):
         """args
             n_epoch: num of epochs
-            data_test: a edict including
+            data_val: a edict including
                 c: bs x d array, feature
                 x: bs/ bsx1, target 
         """
@@ -107,9 +114,9 @@ class TrainDDPM():
         else:
             pbar = range(n_epoch)
         
-        if data_test is not None:
-            c_test = torch.tensor(data_test.c, dtype=self.dftype).to(self.params_ddpm.device)
-            x_test = torch.tensor(data_test.x, dtype=self.dftype).to(self.params_ddpm.device)
+        if data_val is not None:
+            c_test = torch.tensor(data_val.c, dtype=self.dftype).to(self.params_ddpm.device)
+            x_test = torch.tensor(data_val.x, dtype=self.dftype).to(self.params_ddpm.device)
             
         for ep in pbar:
             self.ddpm.train()
@@ -135,18 +142,18 @@ class TrainDDPM():
                 if self.verbose:
                     pbar.set_description(f"loss: {loss_sm:.4f}")
                 self.optim.step()
-                self.losses.append(loss.item())
-                self.losses_sm.append(loss_sm)
+                self.losses.append((ep+1, loss.item()))
+                self.losses_sm.append((ep+1, loss_sm))
                 
-            if data_test is not None:
+            if data_val is not None:
                 if (ep+1)%self.params_ddpm.test_intv == 0:
                     self.ddpm.eval()
                     with torch.no_grad():
-                        loss_test = self.ddpm(x_test, c_test)
+                        loss_test = self.ddpm(x_test, c_test, is_test=True)
                     self.ddpm.train()
-                    self.losses_test.append((ep+1, loss_test.item()))
+                    self.losses_val.append((ep+1, loss_test.item()))
                     if self.verbose:
-                        out_dict = {"test loss": loss_test.item()}
+                        out_dict = {"val loss": loss_test.item()}
                         pbar.set_postfix(out_dict, refresh=True)
                 
             
@@ -163,3 +170,52 @@ class TrainDDPM():
                 if (ep+1) % save_int == 0:
                     logger.info(f"Save model {self.prefix}ddpm_epoch{ep+1}.pth.")
                     torch.save(self.ddpm.state_dict(), self.save_dir/f"{self.prefix}ddpm_epoch{ep+1}.pth")
+                    
+    def get_opt_model(self, ws=20, m_tol=0.10):
+        """Select the best model based on the clossness to the theoretical loss values
+           D_loss = -2*log(0.5) = 1.386
+           G_loss = -log(0.5) = 0.693
+           args: 
+               ws: window size
+               m_tol: tolorance of the mean deviating from smallest val loss
+        """
+        all_models = list(self.save_dir.glob(f"{self.prefix}ddpm_epoch*.pth"))
+        assert (len(self.losses_val) > 0) and (len(all_models) > 0), "You should run train() with val set and save model first"
+        _tmpf = lambda mp: int(mp.stem.split("epoch")[-1])
+        all_models = sorted(all_models, key=_tmpf)
+        neps = [_tmpf(m) for m in all_models]
+
+        
+        if len(all_models) == 1:
+            model_idx = 0
+        else:
+            losses_val = np.array(self.losses_val)[:, 1]
+            eps = np.array(self.losses_val)[:, 0]
+            mlosses = []
+            for model_p in all_models:
+                nep = _tmpf(model_p)
+                cur_idx = np.argmin(np.abs(eps-nep))
+                cur_loss = losses_val[(np.maximum(cur_idx-ws, 0)):(cur_idx+ws)].mean()
+                mlosses.append(cur_loss)
+            mlosses = np.array(mlosses)
+            min_loss = np.min(mlosses)
+            model_idx = np.sort(np.where(mlosses <=(min_loss+m_tol))[0])[-1]
+        
+        logger.info(f"We load model {all_models[model_idx]} with val loss {mlosses[model_idx]:.3f}.")
+        self.ddpm.load_state_dict(torch.load(all_models[model_idx]))
+        self.ddpm.eval()
+        return self.ddpm
+    
+    def get_model(self, nep):
+        """Get trained model at (or closed to) epoch nep
+        """
+        all_models = list(self.save_dir.glob(f"{self.prefix}ddpm_epoch*.pth"))
+        _tmpf = lambda mp: int(mp.stem.split("epoch")[-1])
+        all_models = sorted(all_models, key=_tmpf)
+        neps = np.array([_tmpf(m) for m in all_models])
+        model_idx = np.argmin(np.abs(neps-nep))
+        
+        logger.info(f"We load model {all_models[model_idx]}.")
+        self.ddpm.load_state_dict(torch.load(all_models[model_idx]))
+        self.ddpm.eval()
+        return self.ddpm

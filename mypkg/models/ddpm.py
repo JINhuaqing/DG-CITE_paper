@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from tqdm import trange
 import numpy as np
+import pdb
 
 def ddpm_schedules(beta1, beta2, T):
     """
@@ -124,6 +125,8 @@ class ContextNet(nn.Module):
         self.out = nn.Sequential(
             ResidualMLPBlock(2*n_infeat, in_fs, is_res=False, is_out=True)
         )
+        self.dropout1 = nn.Dropout(0.5)
+        self.dropout2 = nn.Dropout(0.5)
 
     def forward(self, x, c, t, context_mask):
         """args:
@@ -136,13 +139,16 @@ class ContextNet(nn.Module):
         # context_mask says which samples to block the context on
 
         x = self.init_fc(x) # bs x n_infeat
+        x = self.dropout1(x)
         up = self.up(x) # bs x 2n_infeat
 
+        #pdb.set_trace()
         # mask out context if context_mask == 1
         if context_mask.ndim == 1:
             context_mask = context_mask[:, None]
         context_mask = context_mask.repeat(1,self.n_context_fs)
-        context_mask = (-1*(1-context_mask)) # need to flip 0 <-> 1
+        context_mask = (1*(1-context_mask)) # need to flip 0 <-> 1
+        #context_mask = (-1*(1-context_mask)) # need to flip 0 <-> 1
         c = c * context_mask
         
         # embed context, time step
@@ -150,6 +156,7 @@ class ContextNet(nn.Module):
         temb = self.timeembed(t) # bs x 2*n_infeat
 
         down = self.down(cemb*up+ temb)  # add and multiply embeddings
+        down = self.dropout2(down)
         out = self.out(torch.cat((down, x), 1))
         return out
     
@@ -188,7 +195,7 @@ class DDPM(nn.Module):
     def get_num_params(self):
         num = sum(p.numel() for p in self.parameters())
         print(f"The num of params is {num/1e6:.2f}m. ")
-    def forward(self, x, c):
+    def forward(self, x, c, is_test=False):
         """
         this method is used in training, so samples t and noise randomly
         args:
@@ -208,7 +215,11 @@ class DDPM(nn.Module):
         # We should predict the "error term" from this x_t. Loss is what we return.
 
         # dropout context with some probability
-        context_mask = torch.bernoulli(torch.zeros(c.shape[0])+self.drop_prob).to(self.device)
+        if not is_test:
+            context_mask = torch.bernoulli(torch.zeros(c.shape[0])+self.drop_prob).to(self.device)
+        else:
+            context_mask = torch.zeros(c.shape[0]).to(self.device)
+            
         
         # return MSE between added noise, and our predicted noise
         return self.loss_mse(noise, self.nn_model(x_t, c, _ts / self.n_T, context_mask))
@@ -232,7 +243,8 @@ class DDPM(nn.Module):
         context_mask = context_mask.repeat(2)
         context_mask[n_sample:] = 1. # makes second half of batch context free
 
-        if self.verbose:
+        if False:
+        #if self.verbose:
             pbar = trange(self.n_T, 0, -1)
         else:
             pbar = range(self.n_T, 0, -1)
