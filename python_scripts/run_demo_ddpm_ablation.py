@@ -45,6 +45,7 @@ parser = argparse.ArgumentParser(description='run demo')
 parser.add_argument('-s', '--setting', type=str, default="setting3", help='the simu setting') 
 parser.add_argument('--d', type=int, default=0, help='num of features') 
 parser.add_argument('--n', type=int, default=0, help='sample size') 
+parser.add_argument('--epoch', type=int, default=2000, help='epoch number') 
 args = parser.parse_args()
 
 # In[ ]:
@@ -83,7 +84,7 @@ params.ddpm_training = edict()
 # Batch size during training
 params.ddpm_training.batch_size = 256 
 # Number of training epochs
-params.ddpm_training.n_epoch = 2000
+params.ddpm_training.n_epoch = args.epoch
 params.ddpm_training.n_infeat = 128
 # Learning rate for optimizers
 params.ddpm_training.lr = 0.001
@@ -268,15 +269,15 @@ def _run_fn_quanreg(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
             
         prbs = np.mean([res['in_sets'] for res in test_res], axis=0)
         mlen = np.median([res['intvs_len'] for res in test_res])
-        return prbs, mlem
+        return prbs, mlen
     myddpm.train(n_epoch=params.ddpm_training.n_epoch, 
                      data_val=data_val, save_snapshot=params.save_snapshot)
     ddpm = myddpm.ddpm
     ddpm.eval()
-    prbs1, mlem1 = _inner_fn(ddpm)
+    prbs1, mlen1 = _inner_fn(ddpm)
     ddpm = myddpm.get_opt_model()
     ddpm.eval()
-    prbs2, mlem2 = _inner_fn(ddpm)
+    prbs2, mlen2 = _inner_fn(ddpm)
         
         
     # results from CQR
