@@ -43,7 +43,7 @@ from pprint import pprint
 import argparse
 parser = argparse.ArgumentParser(description='run demo')
 parser.add_argument('-s', '--setting', type=str, default="setting3", help='the simu setting') 
-parser.add_argument('-n', '--num', type=int, default=0, help='the sample size') 
+parser.add_argument('--d', type=int, default=0, help='num of features') 
 args = parser.parse_args()
 
 # In[ ]:
@@ -62,8 +62,9 @@ params.simu_setting.ntest = 1000
 params.simu_setting.cal_ratio = 0.25 # for conformal inference
 params.simu_setting.val_ratio = 0.15 # for tuning network
 params.simu_setting.update(simu_settings[setting])
-if args.n > 0:
-    params.simu_setting.n = args.n
+if args.d > 0:
+    params.simu_setting.d = args.d
+params.simu_setting.n = 3000
 pprint(params.simu_setting)
 
 
@@ -105,13 +106,14 @@ params.hypo_test = edict()
 params.hypo_test.alpha = 0.05 # sig level
 
 params.prefix = ""
-params.save_dir = f"demo_ddpm_{setting}_sc1b"
+params.save_dir = f"demo_ddpm_{setting}_d{params.simu_setting.d}_sc1b"
 if not (RES_ROOT/params.save_dir).exists():
     (RES_ROOT/params.save_dir).mkdir()    
 
 # In[ ]:
 
 
+pprint(params)
 
 
 
@@ -309,7 +311,6 @@ def _run_fn_quanreg(rep_ix, model_ix=None):
 
 with Parallel(n_jobs=30) as parallel:
     test_ress = parallel(delayed(_run_fn_quanreg)(rep_ix) for rep_ix in tqdm(range(params.nrep), total=params.nrep))
-
 save_pkl((RES_ROOT/params.save_dir)/f"res_demo.pkl", test_ress, is_force=True)
 
 
