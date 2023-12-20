@@ -92,7 +92,7 @@ params.ddpm_training.lr_gamma = 0.5
 params.ddpm_training.lr_step = 1000
 params.ddpm_training.test_intv = 5
 params.ddpm_training.n_T = 200 # 100
-params.ddpm_training.drop_prob = 0.1
+params.ddpm_training.drop_prob = 0.0
 params.ddpm_training.n_upblk = 1
 params.ddpm_training.n_downblk = 1
 params.ddpm_training.weight_decay = 1e-2
@@ -109,7 +109,7 @@ params.hypo_test = edict()
 params.hypo_test.alpha = 0.05 # sig level
 
 params.prefix = ""
-params.save_dir = f"demo_ablation_d{params.simu_setting.d}_n{params.simu_setting.n}"
+params.save_dir = f"demodp0_ablation_{setting}_d{params.simu_setting.d}_n{params.simu_setting.n}"
 if not (RES_ROOT/params.save_dir).exists():
     (RES_ROOT/params.save_dir).mkdir()    
 
@@ -293,26 +293,28 @@ def _run_fn_quanreg(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
     res_all.DDPM_sel = (prbs2, mlen2)
     res_all.CQR = ([prb_Y1_cqr, prb_tau_cqr], mlen_cqr)
     save_pkl((RES_ROOT/params.save_dir)/f"rep_{rep_ix}_{post_fix}_res.pkl", res_all, is_force=True)
+    all_models = list(myddpm.save_dir.glob(f"{myddpm.prefix}ddpm_epoch*.pth"))
+    [m.unlink() for m in all_models]
     return None
 
 
 
 # In[ ]:
 #lr, n_infeat, n_T, weight_decay, n_blk
-lrs = [1e-3, 1e-4]
-n_Ts = [100, 200, 400, 1000]
-n_infeats = [128, 256, 512]
-n_blks = [1, 2]
-weight_decays = [1e-2, 1]
+lrs = [1e-2, 1e-3, 1e-4]
+n_Ts = [100, 400, 1000]
+n_infeats = [128, 512]
+n_blks = [1, 3]
+weight_decays = [1e-2]
 from itertools import product
 all_coms = product(n_Ts, n_infeats, n_blks, lrs, weight_decays, range(params.nrep))
 
 
-with Parallel(n_jobs=30) as parallel:
+with Parallel(n_jobs=35) as parallel:
     test_ress = parallel(delayed(_run_fn_quanreg)(rep_ix, params=params, 
                                                   lr=lr, n_T=n_T, n_infeat=n_infeat, 
                                                   weight_decay=weight_decay, n_blk=n_blk) 
                          for n_T, n_infeat, n_blk, lr, weight_decay, rep_ix 
-                         in tqdm(all_coms, total=params.nrep*2*4*3*2*2))
+                         in tqdm(all_coms, total=params.nrep*3*3*2*2*1))
 
 
