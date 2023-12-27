@@ -1,5 +1,5 @@
 from constants import RES_ROOT
-from .models.ddpm import ContextNet, ddpm_schedules, DDPM
+from .models.ddpm_now import ContextNet, ddpm_schedules, DDPM
 import torch
 import numpy as np
 from easydict import EasyDict as edict
@@ -42,7 +42,6 @@ class TrainDDPM():
             "n_upblk": 1, 
             "n_downblk": 1, 
             "betas": (1e-4, 0.02),
-            "drop_prob": 0.1, 
             # lr decreasing step factor
             "lr_gamma": 0.9,
             # lr decreasing step time, in epoch
@@ -75,7 +74,6 @@ class TrainDDPM():
                          betas=params_ddpm.betas, 
                          n_T=params_ddpm.n_T, 
                          device=params_ddpm.device, 
-                         drop_prob=params_ddpm.drop_prob, 
                          verbose=verbose);
         self.ddpm.to(params_ddpm.device);
         
@@ -149,7 +147,7 @@ class TrainDDPM():
                 if (ep+1)%self.params_ddpm.test_intv == 0:
                     self.ddpm.eval()
                     with torch.no_grad():
-                        loss_test = self.ddpm(x_test, c_test, is_test=True)
+                        loss_test = self.ddpm(x_test, c_test)
                     self.ddpm.train()
                     self.losses_val.append((ep+1, loss_test.item()))
                     if self.verbose:
