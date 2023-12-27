@@ -15,7 +15,7 @@ from constants import RES_ROOT, FIG_ROOT, DATA_ROOT
 from utils.misc import load_pkl, save_pkl, merge_intervals
 from utils.colors import qual_cmap
 from utils.stats import weighted_quantile
-from data_gen import get_simu_data
+from data_gen1 import get_simu_data
 from utils.utils import MyDataSet, get_idx_sets
 from demo_settings import simu_settings
 from CQR import get_CQR_CIs
@@ -72,7 +72,7 @@ pprint(params.simu_setting)
 
 
 params.nrep = 50 # num of reptition for simulation
-params.K = 40 # num of sps drawn from q(Y(1)|X)
+params.K = 20 # num of sps drawn from q(Y(1)|X)
 params.save_snapshot = 100
 params.dftype = torch.float32
 params.device="cpu"
@@ -87,14 +87,14 @@ params.ddpm_training.batch_size = 256
 params.ddpm_training.n_epoch = args.epoch
 params.ddpm_training.n_infeat = 128
 # Learning rate for optimizers
-params.ddpm_training.lr = 0.001
-params.ddpm_training.lr_gamma = 0.5
-params.ddpm_training.lr_step = 1000
+params.ddpm_training.lr = 0.002
+params.ddpm_training.lr_gamma = 0.8
+params.ddpm_training.lr_step = 200
 params.ddpm_training.test_intv = 5
-params.ddpm_training.n_T = 200 # 100
+params.ddpm_training.n_T = 400 # 100
 params.ddpm_training.drop_prob = 0.0
-params.ddpm_training.n_upblk = 1
-params.ddpm_training.n_downblk = 1
+params.ddpm_training.n_upblk = 3
+params.ddpm_training.n_downblk = 3
 params.ddpm_training.weight_decay = 1e-2
 #params.ddpm_training.betas = [0.001, 0.5]
 
@@ -109,7 +109,7 @@ params.hypo_test = edict()
 params.hypo_test.alpha = 0.05 # sig level
 
 params.prefix = ""
-params.save_dir = f"demodp0new_ablation_{setting}_d{params.simu_setting.d}_n{params.simu_setting.n}"
+params.save_dir = f"demodp0mysetting_ablation_{setting}_d{params.simu_setting.d}_n{params.simu_setting.n}"
 if not (RES_ROOT/params.save_dir).exists():
     (RES_ROOT/params.save_dir).mkdir()    
 
@@ -117,13 +117,7 @@ if not (RES_ROOT/params.save_dir).exists():
 
 keys = ["lr", "n_infeat", "n_T", "weight_decay", "n_upblk", "n_downblk"]
 def _get_name_postfix(keys):
-    lst = []
-    for key in keys:
-        if params.ddpm_training[key] >= 1:
-            lst.append(f"{key}-{str(params.ddpm_training[key])}")
-        else:
-            lst.append(f"{key}--{str(params.ddpm_training[key]).split('.')[-1]}")
-    return "_".join(lst)
+    return "_".join([f"{key}-{str(params.ddpm_training[key]).split('.')[-1]}" for key in keys])
 
 
 pprint(params)
@@ -307,10 +301,10 @@ def _run_fn_quanreg(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
 
 # In[ ]:
 #lr, n_infeat, n_T, weight_decay, n_blk
-lrs = [1, 1e-1, 1e-2]
-n_Ts = [400, 1000]
+lrs = [2e-2, 1e-1, 1e-3]
+n_Ts = [400, 100, 1000]
 n_infeats = [128, 512]
-n_blks = [7, 5, 3, 9]
+n_blks = [3, 1, 5]
 weight_decays = [1e-2]
 from itertools import product
 all_coms = product(n_Ts, n_infeats, n_blks, lrs, weight_decays, range(params.nrep))
@@ -321,6 +315,6 @@ with Parallel(n_jobs=35) as parallel:
                                                   lr=lr, n_T=n_T, n_infeat=n_infeat, 
                                                   weight_decay=weight_decay, n_blk=n_blk) 
                          for n_T, n_infeat, n_blk, lr, weight_decay, rep_ix 
-                         in tqdm(all_coms, total=params.nrep*3*2*2*4*1))
+                         in tqdm(all_coms, total=params.nrep*3*3*2*3*1))
 
 
