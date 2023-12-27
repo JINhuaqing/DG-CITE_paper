@@ -1,5 +1,6 @@
 from constants import RES_ROOT
 from .models.ddpm_now import ContextNet, ddpm_schedules, DDPM
+from sklearn.linear_model import LinearRegression
 import torch
 import numpy as np
 from easydict import EasyDict as edict
@@ -99,7 +100,7 @@ class TrainDDPM():
         self.save_dir = save_dir
             
             
-    def train(self, n_epoch, data_val=None, save_snapshot=True):
+    def train(self, n_epoch, data_val=None, save_snapshot=True, early_stop=False, early_stop_dict={}):
         """args
             n_epoch: num of epochs
             data_val: a edict including
@@ -107,6 +108,24 @@ class TrainDDPM():
                 x: bs/ bsx1, target 
         """
         assert not (save_snapshot and (self.save_dir is None)), "if you want to save model, plz provide save dir"
+        if early_stop: 
+            assert data_val, "If you want to to early stop, a val data must be provided."
+            # control how many pts used for linear regression.
+            early_stop_dict_def = {}
+            early_stop_dict_def["early_stop_len"] = 50
+            early_stop_dict_def["early_stop_eps"] = 5e-4
+            
+            for ky, v in early_stop_dict_def.items():
+                if ky not in early_stop_dict.keys():
+                    early_stop_dict[ky] = v
+            logger.info(f"Early stop params are {early_stop_dict}")
+                    
+            early_stop_len = early_stop_dict["early_stop_len"]
+            early_stop_eps = early_stop_dict["early_stop_eps"]
+        else:
+            if len(early_stop_dict) > 0:
+                logger.warning(f"We do not do early stop, so any args in early_stop_dict are ignored.")
+                
         if self.verbose:
             pbar = trange(n_epoch)
         else:
@@ -117,6 +136,7 @@ class TrainDDPM():
             x_test = torch.tensor(data_val.x, dtype=self.dftype).to(self.params_ddpm.device)
             
         for ep in pbar:
+            out_dict = {}
             self.ddpm.train()
             loss_sm = None # smoother version of loss
             for data in self.data_train_loader:
@@ -150,9 +170,25 @@ class TrainDDPM():
                         loss_test = self.ddpm(x_test, c_test)
                     self.ddpm.train()
                     self.losses_val.append((ep+1, loss_test.item()))
+                    
+                    out_dict["val loss"] = loss_test.item()
+                        
+                
+                    #only do earlystop when having new val loss
+                    if early_stop and (len(self.losses_val)>=early_stop_len):
+                        eps_val = np.array(self.losses_val)[-early_stop_len:, 0][:, None]
+                        loss_val = np.array(self.losses_val)[-early_stop_len:, 1][:, None];
+                        fit = LinearRegression().fit(X=eps_val, y=loss_val)
+                        coef = fit.coef_[0][0]
+                        out_dict["reg_coef"] = coef
+                        if coef > early_stop_eps: 
+                            torch.save(self.ddpm.state_dict(), self.save_dir/f"{self.prefix}ddpm_epoch{ep+1}.pth")
+                            logger.info(f"Save model {self.prefix}ddpm_epoch{ep+1}.pth due to early stop.")
+                            break
+                        
                     if self.verbose:
-                        out_dict = {"val loss": loss_test.item()}
                         pbar.set_postfix(out_dict, refresh=True)
+                
                 
             
             if (ep+1) % self.params_ddpm.lr_step == 0:

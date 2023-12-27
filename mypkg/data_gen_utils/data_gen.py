@@ -67,10 +67,14 @@ def sdfun(X, is_homo=True):
         sds = -np.log(X[:, 0]+1e-9)
     return sds
 
-def errdist(n):
-    return ss.norm.rvs(size=n)
+def errdist(n, typ="norm"):
+    if typ.lower().startswith("norm"):
+        return ss.norm.rvs(size=n)
+    elif typ.lower().startswith("t"):
+        rvs = ss.t.rvs(3, size=n)
+        return rvs/rvs.std()
 
-def get_simu_data(n, d, rho=0, is_homo=True, is_condition=False):
+def get_simu_data(n, d, rho=0, is_homo=True, is_condition=False, err_type="norm"):
     """
     Generate simulated data for a causal inference problem.
 
@@ -98,7 +102,7 @@ def get_simu_data(n, d, rho=0, is_homo=True, is_condition=False):
     ps = psfun(X)
     
     Y0 = np.zeros(n)
-    Y1 = tau + std*errdist(n)
+    Y1 = tau + std*errdist(n, err_type)
     T = ss.uniform.rvs(size=n) < ps;
     Y = Y0.copy()
     Y[T] = Y1[T]
