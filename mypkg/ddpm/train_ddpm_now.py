@@ -220,6 +220,7 @@ class TrainDDPM():
         
         if len(all_models) == 1:
             model_idx = 0
+            logger.info(f"We load model {all_models[model_idx]}.")
         else:
             losses_val = np.array(self.losses_val)[:, 1]
             eps = np.array(self.losses_val)[:, 0]
@@ -232,8 +233,7 @@ class TrainDDPM():
             mlosses = np.array(mlosses)
             min_loss = np.min(mlosses)
             model_idx = np.sort(np.where(mlosses <=(min_loss+m_tol))[0])[-1]
-        
-        logger.info(f"We load model {all_models[model_idx]} with val loss {mlosses[model_idx]:.3f}.")
+            logger.info(f"We load model {all_models[model_idx]} with val loss {mlosses[model_idx]:.3f}.")
         self.ddpm.load_state_dict(torch.load(all_models[model_idx]))
         self.ddpm.eval()
         return self.ddpm

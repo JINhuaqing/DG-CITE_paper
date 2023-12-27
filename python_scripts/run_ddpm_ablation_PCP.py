@@ -211,7 +211,6 @@ def _run_fn_PCP(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
         
         
     # train q(Y(1)|X)
-    # I skip this for now, suppose you get one
     data_train_ddpm = MyDataSet(Y=data_train.Y[tr_idxs], X=data_train.X[tr_idxs])
     data_val = edict()
     data_val.c =  data_train.X[val_idxs]
@@ -226,7 +225,7 @@ def _run_fn_PCP(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
                        **input_params);
     
     
-    def _inner_fn(ddpm):
+    def _inner_fn(data_set, ddpm):
         # weight function
         def wtfun(x):
             if x.ndim == 1:
@@ -241,9 +240,9 @@ def _run_fn_PCP(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
                 
         def _run_fn2(te_idx):
             torch.set_default_dtype(params.dftype)
-            teX = data_test.X[te_idx]
-            teY1 = data_test.Y1[te_idx]
-            tetau = data_test.tau[te_idx]
+            teX = data_set.X[te_idx]
+            teY1 = data_set.Y1[te_idx]
+            tetau = data_set.tau[te_idx]
             
             # get qv for current test pt
             ws_wtest = np.concatenate([ws, wtfun(teX)]);
@@ -267,14 +266,20 @@ def _run_fn_PCP(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
             res["intvs"] = intvs
             return res
             
-        teYs_hat = _gen_Y_given_X(data_test.X, ddpm, manualSeed);
-        pbar2 = range(params.simu_setting.ntest)
+        teYs_hat = _gen_Y_given_X(data_set.X, ddpm, manualSeed);
+        pbar2 = range(data_set.X.shape[0])
         with Parallel(n_jobs=1) as parallel:
             test_res = parallel(delayed(_run_fn2)(te_idx) for te_idx in pbar2)
             
         prbs = np.mean([res['in_sets'] for res in test_res], axis=0)
         mlen = np.median([res['intvs_len'] for res in test_res])
         return prbs, mlen
+    
+    data_val1 = edict()
+    data_val1.X =  data_train.X[val_idxs]
+    data_val1.Y =  data_train.Y[val_idxs]
+    data_val1.Y1 =  data_train.Y1[val_idxs]
+    data_val1.tau =  data_train.tau[val_idxs]
     
     myddpm.train(n_epoch=params.ddpm_training.n_epoch, 
                      data_val=data_val, save_snapshot=params.save_snapshot, 
@@ -283,10 +288,12 @@ def _run_fn_PCP(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
                      )
     ddpm = myddpm.ddpm
     ddpm.eval()
-    prbs1, mlen1 = _inner_fn(ddpm)
+    prbs1, mlen1 = _inner_fn(data_test, ddpm)
+    prbs1_val, mlen1_val = _inner_fn(data_val1, ddpm)
     ddpm = myddpm.get_opt_model()
     ddpm.eval()
-    prbs2, mlen2 = _inner_fn(ddpm)
+    prbs2, mlen2 = _inner_fn(data_test, ddpm)
+    prbs2_val, mlen2_val = _inner_fn(data_val1, ddpm)
         
         
     # results from CQR
@@ -303,6 +310,8 @@ def _run_fn_PCP(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
     res_all = edict()
     res_all.DDPM = (prbs1, mlen1)
     res_all.DDPM_sel = (prbs2, mlen2)
+    res_all.DDPM_val = (prbs1_val, mlen1_val)
+    res_all.DDPM_sel_val = (prbs2_val, mlen2_val)
     res_all.CQR = ([prb_Y1_cqr, prb_tau_cqr], mlen_cqr)
     save_pkl((RES_ROOT/params.save_dir)/f"rep_{rep_ix}_{post_fix}_res.pkl", res_all, is_force=True)
     all_models = list(myddpm.save_dir.glob(f"{myddpm.prefix}ddpm_epoch*.pth"))
