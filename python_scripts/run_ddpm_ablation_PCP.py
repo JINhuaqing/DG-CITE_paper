@@ -91,7 +91,6 @@ params.ddpm_training.lr_gamma = 0.5
 params.ddpm_training.lr_step = 1000
 params.ddpm_training.test_intv = 5
 params.ddpm_training.n_T = 200 # 100
-params.ddpm_training.drop_prob = 0.0
 params.ddpm_training.n_upblk = 1
 params.ddpm_training.n_downblk = 1
 params.ddpm_training.weight_decay = 1e-2
@@ -199,11 +198,13 @@ def _run_fn_PCP(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
     data_train = get_simu_data(n=params.simu_setting.n, 
                                d=params.simu_setting.d, 
                                is_homo=params.simu_setting.is_homo, 
-                               rho=params.simu_setting.rho);
+                               rho=params.simu_setting.rho, 
+                               err_type=params.simu_setting.err_type);
     data_test = get_simu_data(n=params.simu_setting.ntest, 
                                d=params.simu_setting.d, 
                                is_homo=params.simu_setting.is_homo, 
-                               rho=params.simu_setting.rho);
+                               rho=params.simu_setting.rho,
+                               err_type=params.simu_setting.err_type);
     
     cal_idxs, val_idxs, tr_idxs = get_idx_sets(all_idxs=np.where(data_train.T)[0], 
                                                ratios = [params.simu_setting.cal_ratio, params.simu_setting.val_ratio])

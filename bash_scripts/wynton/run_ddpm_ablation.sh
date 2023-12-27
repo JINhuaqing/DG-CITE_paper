@@ -8,17 +8,17 @@
 ##### set job working directory
 #$ -wd  /wynton/home/rajlab/hjin/MyResearch/DG-CITE_paper/bash_scripts/
 #### Specify job name
-#$ -N S4_1000
+#$ -N S7_d1_n3k
 #### Output file
-#$ -o wynton/logs/DDPM-$JOB_NAME_$JOB_ID.out
+#$ -o wynton/logs/DDPM-ABL-$JOB_NAME_$JOB_ID.out
 #### Error file
-#$ -e wynton/logs/DDPM-$JOB_NAME_$JOB_ID.err
+#$ -e wynton/logs/DDPM-ABL-$JOB_NAME_$JOB_ID.err
 #### memory per core
 #$ -l mem_free=2G
 #### number of cores 
 #$ -pe smp 40
 #### Maximum run time 
-#$ -l h_rt=48:00:00
+#$ -l h_rt=72:00:00
 #### job requires up to 2 GB local space
 #$ -l scratch=2G
 #### Specify queue
@@ -30,6 +30,6 @@
 
 echo "Starting running"
 
-singularity exec ~/MyResearch/dg-cite_latest.sif python -u ../python_scripts/run_demo_ddpm_sc1b.py --setting setting4 --d 1000
+singularity exec ~/MyResearch/dg-cite_latest.sif python -u ../python_scripts/run_ddpm_ablation_PCP.py --setting setting7 --d 10 --n 3000 --epoch 4000
 
 [[ -n "$JOB_ID" ]] && qstat -j "$JOB_ID"
