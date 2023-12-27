@@ -5,4 +5,5 @@ __pycache__
 logs/
 *.swp
 *.swo
-
+code_bak
+all_res.html

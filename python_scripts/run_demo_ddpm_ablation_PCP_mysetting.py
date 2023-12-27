@@ -15,12 +15,11 @@ from constants import RES_ROOT, FIG_ROOT, DATA_ROOT
 from utils.misc import load_pkl, save_pkl, merge_intervals
 from utils.colors import qual_cmap
 from utils.stats import weighted_quantile
-from data_gen1 import get_simu_data
+from data_gen_utils.data_gen1 import get_simu_data
 from utils.utils import MyDataSet, get_idx_sets
 from demo_settings import simu_settings
 from CQR import get_CQR_CIs
-from models.ddpm import ContextNet, ddpm_schedules, DDPM
-from ddpm.train_ddpm import TrainDDPM
+from ddpm.train_ddpm_now import TrainDDPM
 
 
 # In[3]:
@@ -109,7 +108,7 @@ params.hypo_test = edict()
 params.hypo_test.alpha = 0.05 # sig level
 
 params.prefix = ""
-params.save_dir = f"demodp0mysetting_ablation_{setting}_d{params.simu_setting.d}_n{params.simu_setting.n}"
+params.save_dir = f"demodp0mysettingtest_ablation_{setting}_d{params.simu_setting.d}_n{params.simu_setting.n}"
 if not (RES_ROOT/params.save_dir).exists():
     (RES_ROOT/params.save_dir).mkdir()    
 
@@ -117,8 +116,13 @@ if not (RES_ROOT/params.save_dir).exists():
 
 keys = ["lr", "n_infeat", "n_T", "weight_decay", "n_upblk", "n_downblk"]
 def _get_name_postfix(keys):
-    return "_".join([f"{key}-{str(params.ddpm_training[key]).split('.')[-1]}" for key in keys])
-
+    lst = []
+    for key in keys:
+        if params.ddpm_training[key] >= 1:
+            lst.append(f"{key}-{str(params.ddpm_training[key])}")
+        else:
+            lst.append(f"{key}--{str(params.ddpm_training[key]).split('.')[-1]}")
+    return "_".join(lst)
 
 pprint(params)
 
@@ -146,7 +150,7 @@ def _gen_Y_given_X(X, ddpm, seed=1):
         c_cur = c_all[(ix*params.inf_bs):(ix*params.inf_bs+params.inf_bs)]
         c_cur_mul = c_cur.repeat(params.K, 1);
         with torch.no_grad():
-            x_0, _ = ddpm.sample(c_cur_mul, device=params.device, guide_w=0, is_store=False);
+            x_0, _ = ddpm.sample(c_cur_mul, device=params.device, is_store=False);
         x_0 = x_0.cpu().numpy().reshape(-1);
         x_0 = x_0.reshape(params.K, -1);
         return x_0
@@ -301,11 +305,16 @@ def _run_fn_quanreg(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
 
 # In[ ]:
 #lr, n_infeat, n_T, weight_decay, n_blk
-lrs = [2e-2, 1e-1, 1e-3]
-n_Ts = [400, 100, 1000]
-n_infeats = [128, 512]
-n_blks = [3, 1, 5]
+lrs = [1e-1]
+n_Ts = [400]
+n_infeats = [128]
+n_blks = [1]
 weight_decays = [1e-2]
+#lrs = [2e-2, 1e-1, 1e-3]
+#n_Ts = [400, 100, 1000]
+#n_infeats = [128, 512]
+#n_blks = [3, 1, 5]
+#weight_decays = [1e-2]
 from itertools import product
 all_coms = product(n_Ts, n_infeats, n_blks, lrs, weight_decays, range(params.nrep))
 
@@ -315,6 +324,7 @@ with Parallel(n_jobs=35) as parallel:
                                                   lr=lr, n_T=n_T, n_infeat=n_infeat, 
                                                   weight_decay=weight_decay, n_blk=n_blk) 
                          for n_T, n_infeat, n_blk, lr, weight_decay, rep_ix 
-                         in tqdm(all_coms, total=params.nrep*3*3*2*3*1))
+                         in tqdm(all_coms, total=params.nrep*1))
+                         #in tqdm(all_coms, total=params.nrep*3*3*2*3*1))
 
 
