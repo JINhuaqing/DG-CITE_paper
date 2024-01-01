@@ -15,7 +15,7 @@ from constants import RES_ROOT, FIG_ROOT, DATA_ROOT
 from utils.misc import load_pkl, save_pkl, merge_intervals
 from utils.colors import qual_cmap
 from utils.stats import weighted_quantile
-from data_gen_utils.data_gen import get_simu_data
+from data_gen_utils.data_gen_my import get_simu_data
 from utils.utils import MyDataSet, get_idx_sets
 from demo_settings import simu_settings
 from CQR import get_CQR_CIs
@@ -78,7 +78,7 @@ params.dftype = torch.float32
 params.device="cpu"
 params.n_jobs = 1
 params.verbose = False
-params.inf_bs = 250 # the inference batch, fct x K
+params.inf_bs = 500 # the inference batch: fct x K
 
 params.ddpm_training = edict()
 # Batch size during training
@@ -110,9 +110,9 @@ params.hypo_test.alpha = 0.05 # sig level
 
 params.prefix = ""
 if params.ddpm_training.early_stop:
-    params.save_dir = f"simu_ablation_{setting}_d{params.simu_setting.d}_n{params.simu_setting.n}"
+    params.save_dir = f"simu_ablation_my{setting}_d{params.simu_setting.d}_n{params.simu_setting.n}"
 else:
-    params.save_dir = f"simu_ablation_{setting}_d{params.simu_setting.d}_n{params.simu_setting.n}_noearly"
+    params.save_dir = f"simu_ablation_my{setting}_d{params.simu_setting.d}_n{params.simu_setting.n}_noearly"
 if not (RES_ROOT/params.save_dir).exists():
     (RES_ROOT/params.save_dir).mkdir()    
 
@@ -330,10 +330,10 @@ def _run_fn_PCP(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
 lrs = [1e-1, 1e-2]
 #lrs = [5e-1, 1e-1, 1e-2]
 n_Ts = [400]
-#n_Ts = [100, 200, 400, 1000]
+#n_Ts = [100, 200, 400]
 n_infeats = [128, 512]
 n_blks = [1, 3, 5]
-weight_decays = [1e-2, 1e-1]
+weight_decays = [1e-1, 1e-2]
 from itertools import product
 all_coms = product(n_Ts, n_infeats, n_blks, lrs, weight_decays, range(params.nrep))
 

@@ -8,7 +8,7 @@
 ##### set job working directory
 #$ -wd  /wynton/home/rajlab/hjin/MyResearch/DG-CITE_paper/bash_scripts/
 #### Specify job name
-#$ -N S3ne_d1_n3k
+#$ -N myS5ne_d1_n3k
 #### Output file
 #$ -o wynton/logs/DDPM-ABL-$JOB_NAME_$JOB_ID.out
 #### Error file
@@ -30,6 +30,6 @@
 
 echo "Starting running"
 
-singularity exec ~/MyResearch/dg-cite_latest.sif python -u ../python_scripts/run_ddpm_ablation_PCP.py --setting setting3 --d 10 --n 3000 --epoch 3000 --early_stop 0
+singularity exec ~/MyResearch/dg-cite_latest.sif python -u ../python_scripts/run_ddpm_ablation_PCP_mysetting.py --setting setting5 --d 10 --n 3000 --epoch 3000 --early_stop 0
 
 [[ -n "$JOB_ID" ]] && qstat -j "$JOB_ID"
