@@ -328,12 +328,13 @@ def _run_fn_PCP(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
 #lr, n_infeat, n_T, weight_decay, n_blk
 # based on results, remove lr=0.5
 lrs = [1e-1, 1e-2]
+#lrs = [1e-1, 1e-2]
 #lrs = [5e-1, 1e-1, 1e-2]
-n_Ts = [400]
+n_Ts = [100, 200, 400]
 #n_Ts = [100, 200, 400, 1000]
 n_infeats = [128, 512]
 n_blks = [1, 3, 5]
-weight_decays = [1e-2, 1e-1]
+weight_decays = [1e-2]
 from itertools import product
 all_coms = product(n_Ts, n_infeats, n_blks, lrs, weight_decays, range(params.nrep))
 
@@ -343,6 +344,6 @@ with Parallel(n_jobs=35) as parallel:
                                                   lr=lr, n_T=n_T, n_infeat=n_infeat, 
                                                   weight_decay=weight_decay, n_blk=n_blk) 
                          for n_T, n_infeat, n_blk, lr, weight_decay, rep_ix 
-                         in tqdm(all_coms, total=params.nrep*2*1*2*3*2))
+                         in tqdm(all_coms, total=params.nrep*2*3*2*3*1))
 
 

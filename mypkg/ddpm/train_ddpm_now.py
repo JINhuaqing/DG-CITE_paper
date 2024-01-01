@@ -183,7 +183,7 @@ class TrainDDPM():
                         out_dict["reg_coef"] = coef
                         if coef > early_stop_eps: 
                             torch.save(self.ddpm.state_dict(), self.save_dir/f"{self.prefix}ddpm_epoch{ep+1}.pth")
-                            logger.info(f"Save model {self.prefix}ddpm_epoch{ep+1}.pth due to early stop.")
+                            logger.warning(f"Save model {self.prefix}ddpm_epoch{ep+1}.pth due to early stop.")
                             break
                         
                     if self.verbose:
