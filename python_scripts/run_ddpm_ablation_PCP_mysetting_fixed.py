@@ -338,8 +338,8 @@ def _run_fn_PCP(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
 # based on results, remove lr=0.5
 lrs = [1e-1, 1e-2]
 #lrs = [5e-1, 1e-1, 1e-2]
-n_Ts = [400]
-#n_Ts = [100, 200, 400]
+#n_Ts = [400]
+n_Ts = [400, 200, 100]
 n_infeats = [128, 512]
 n_blks = [1, 3, 5]
 weight_decays = [1e-2]
