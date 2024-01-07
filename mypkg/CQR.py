@@ -1,13 +1,13 @@
 from rpy2 import robjects as robj
 import numpy as np
 r = robj.r
-r["library"]("cfcausal");
+#r["library"]("cfcausal");
 r("""
 CQR_fn <- function(X, Y, T, Xtest, nav=0, alpha=0.05, fyx_est="quantBoosting", estimand="unconditional", seed=0) {
 
     set.seed(seed)
     Y[T==nav] <- NA
-    res <- conformalCf(X, Y, quantiles=c(alpha/2, 1-alpha/2), estimand=estimand, psfun=NULL, useCV=FALSE, outfun=fyx_est)
+    res <- cfcausal::conformalCf(X, Y, quantiles=c(alpha/2, 1-alpha/2), estimand=estimand, psfun=NULL, useCV=FALSE, outfun=fyx_est)
     CI = predict(res, Xtest, alpha=alpha);
     return(CI)
 }
@@ -61,3 +61,64 @@ def get_CQR_CIs(X, Y, T, Xtest, nav=0, alpha=0.05, fyx_est="quantBoosting", esti
     CIs = r["CQR_fn"](XR, YR, TR, XtestR, nav=nav, alpha=alpha, fyx_est=fyx_est, estimand=estimand, seed=seed) 
     CIs = np.array(CIs).T;
     return CIs
+
+
+
+
+r("""
+boosting <- function(Y, X, Xtest, n_trees=100){
+    if (class(X)[1] != "data.frame"){
+        X <- as.data.frame(X)
+        Xtest <- as.data.frame(Xtest)
+        names(Xtest) <- names(X)
+    }
+    data <- data.frame(Y = Y, X)
+    fit <- gbm::gbm(Y ~ ., distribution = "bernoulli", data = data, n.trees = n_trees)
+    res <- predict(fit, Xtest, type = "response", n.trees = n_trees)
+    ress = list()
+    ress$fit <- fit
+    ress$n_trees <- n_trees
+    ress$res <- res
+    return(ress)
+}
+"""
+)
+
+r("""
+boosting.pred <- function(Xtest, fit_res){
+    if (class(Xtest)[1] != "data.frame"){
+        Xtest <- as.data.frame(Xtest)
+    }
+    res <- predict(fit_res$fit, Xtest, type = "response", n.trees = fit_res$n_trees)
+    return(res)
+}
+"""
+)
+def boosting_logi(Y, X, X_test=None, n_trees=100):
+    """
+    Perform boosting logistic regression.
+
+    Parameters:
+    - Y: The target variable.
+    - X: The training data.
+    - X_test: The test data.
+    - n_trees: The number of trees to use in the boosting algorithm. Default is 100.
+
+    Returns:
+    - pred_probs: The predicted probabilities for the test data.
+    """
+    YR = robj.FloatVector(Y);
+    XR = array2d2Robj(X);
+    if X_test is None:
+        X_test = X
+    XtestR = array2d2Robj(X_test);
+    ress = r["boosting"](YR, XR, XtestR, n_trees)
+    return ress
+
+def boosting_pred(X_test, fit_res):
+    """
+    Perform pred with results from boosting_logi
+    """
+    XtestR = array2d2Robj(X_test);
+    pred_probs = np.array(r["boosting.pred"](XtestR, fit_res));
+    return pred_probs

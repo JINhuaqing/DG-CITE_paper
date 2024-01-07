@@ -224,7 +224,7 @@ class DDPM(nn.Module):
         # return MSE between added noise, and our predicted noise
         return self.loss_mse(noise, self.nn_model(x_t, c, _ts / self.n_T, context_mask))
 
-    def sample(self, c_i, device="cpu", guide_w = 0.0, is_store=True):
+    def sample(self, c_i, device="cpu", guide_w = 0.0, is_store=False):
         # we follow the guidance sampling scheme described in 'Classifier-Free Diffusion Guidance'
         # to make the fwd passes efficient, we concat two versions of the dataset,
         # one with context_mask=0 and the other context_mask=1

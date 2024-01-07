@@ -208,7 +208,7 @@ class DDPM(nn.Module):
         # return MSE between added noise, and our predicted noise
         return self.loss_mse(noise, self.nn_model(x_t, c, _ts / self.n_T))
 
-    def sample(self, c_i, device="cpu", is_store=True):
+    def sample(self, c_i, device="cpu", is_store=False):
         # we follow the guidance sampling scheme described in 'Classifier-Free Diffusion Guidance'
         # to make the fwd passes efficient, we concat two versions of the dataset,
         # we then mix the outputs with the guidance scale, w
@@ -238,5 +238,72 @@ class DDPM(nn.Module):
             )
             if (i%20==0 or i==self.n_T or i<8) and (is_store):
                 x_i_store.append(x_i.detach().cpu().numpy())
+        x_i_store = np.array(x_i_store)
+        return x_i, x_i_store
+    
+    def sample_ddim(self, c_i, 
+                    ddim_timesteps=50, 
+                    device="cpu", 
+                    ddim_discr_method="uniform",
+                    ddim_eta=0, is_store=False):
+        """args
+            c_i(tensor, bs x d): the indepedent varaible
+            ddim_timesteps (int): The num of steps for DDIM
+            ddim_eta (float): the eta control DDIM randomness, eta=0, DDIM, eta=1 DDPM
+        """
+        assert (self.n_T % ddim_timesteps) == 0, "n_T should be divisible by ddim_timesteps."
+        
+        if ddim_discr_method == 'uniform':
+            intv = self.n_T // ddim_timesteps
+            ddim_timestep_seq = np.asarray(list(range(self.n_T, 0, -intv)))
+        else:
+            raise NotImplementedError(f'There is no ddim discretization method called "{ddim_discr_method}"')
+            
+        ddim_timestep_seq = ddim_timestep_seq[::-1]
+        # previous sequence
+        ddim_timestep_prev_seq = np.append(np.array([0]), ddim_timestep_seq[:-1])
+        
+        if False:
+            pbar = tqdm(reversed(range(0, ddim_timesteps)), desc='DDIM sampling', total=ddim_timesteps)
+        else:
+            pbar = reversed(range(0, ddim_timesteps))
+        
+        c_i = c_i.to(device)
+        n_sample = c_i.shape[0]
+        x_i = torch.randn(n_sample, 1).to(device)  # x_T ~ N(0, 1), sample initial noise
+        x_i_store = []
+        for i in pbar:
+            t_is = torch.tensor([ddim_timestep_seq[i]/ self.n_T], dtype=torch.get_default_dtype()).to(device)
+            t_is = t_is.repeat(n_sample,1)
+            z = torch.randn(n_sample, 1).to(device) if i > 1 else 0
+            
+            # get the pred noice
+            eps = self.nn_model(x_i, c_i, t_is)
+            
+            alpt = self.alphabar_t[ddim_timestep_seq[i]]
+            prev_alpt = self.alphabar_t[ddim_timestep_prev_seq[i]]
+            
+            # 3. get predicted x0
+            pred_x0 = (x_i- torch.sqrt((1. - alpt)) * eps) / torch.sqrt(alpt)
+            clip_denoised = False
+            if clip_denoised:
+                pred_x0 = torch.clamp(pred_x0, min=-1., max=1.)
+                
+            # 4. compute variance: "sigma_t(η)" -> see formula (16)
+            # σ_t = sqrt((1 − α_t−1)/(1 − α_t)) * sqrt(1 − α_t/α_t−1)
+            sigmas_t = ddim_eta * torch.sqrt(
+                (1 - prev_alpt) / (1 - alpt) * (1 - alpt/ prev_alpt))
+            
+            # 5. compute "direction pointing to x_t" of formula (12)
+            pred_dir_xt = torch.sqrt(1 - prev_alpt- sigmas_t**2) * eps
+            
+            # 6. compute x_{t-1} of formula (12)
+            z = torch.randn(n_sample, 1).to(device) if i >1 else 0
+            x_prev = torch.sqrt(prev_alpt) * pred_x0 + pred_dir_xt + sigmas_t * z
+            x_i = x_prev
+            
+            if (i%3==0 or ddim_timestep_seq[i]==self.n_T or i<8) and (is_store):
+                x_i_store.append(x_i.detach().cpu().numpy())
+
         x_i_store = np.array(x_i_store)
         return x_i, x_i_store

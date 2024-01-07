@@ -132,8 +132,11 @@ class TrainDDPM():
             pbar = range(n_epoch)
         
         if data_val is not None:
-            c_test = torch.tensor(data_val.c, dtype=self.dftype).to(self.params_ddpm.device)
-            x_test = torch.tensor(data_val.x, dtype=self.dftype).to(self.params_ddpm.device)
+            c_test, x_test = data_val.c, data_val.x
+            if not isinstance(data_val.c, torch.Tensor):
+                c_test = torch.tensor(c_test, dtype=self.dftype).to(self.params_ddpm.device)
+            if not isinstance(data_val.x, torch.Tensor):
+                x_test = torch.tensor(x_test, dtype=self.dftype).to(self.params_ddpm.device)
             
         for ep in pbar:
             out_dict = {}
