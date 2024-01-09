@@ -8,11 +8,11 @@
 ##### set job working directory
 #$ -wd  /wynton/home/rajlab/hjin/MyResearch/DG-CITE_paper/bash_scripts/
 #### Specify job name
-#$ -N myS5ne_d1_n3k
+#$ -N S1_d1_nT1
 #### Output file
-#$ -o wynton/logs/DDPM-ABL-$JOB_NAME_$JOB_ID.out
+#$ -o wynton/logs/DDPM-SIMU-$JOB_NAME_$JOB_ID.out
 #### Error file
-#$ -e wynton/logs/DDPM-ABL-$JOB_NAME_$JOB_ID.err
+#$ -e wynton/logs/DDPM-SIMU-$JOB_NAME_$JOB_ID.err
 #### memory per core
 #$ -l mem_free=2G
 #### number of cores 
@@ -30,6 +30,6 @@
 
 echo "Starting running"
 
-singularity exec ~/MyResearch/dg-cite_latest.sif python -u ../python_scripts/run_ddpm_ablation_PCP_mysetting.py --setting setting5 --d 10 --n 3000 --epoch 3000 --early_stop 0
+singularity exec ~/MyResearch/dg-cite_latest.sif python -u ../python_scripts/simu_lei.py --setting setting${1} --d ${2} --n 3000 --epoch 3000 --early_stop 0 --n_T ${3}
 
 [[ -n "$JOB_ID" ]] && qstat -j "$JOB_ID"

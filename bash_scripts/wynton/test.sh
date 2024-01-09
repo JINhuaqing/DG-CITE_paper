@@ -8,15 +8,15 @@
 ##### set job working directory
 #$ -wd  /wynton/home/rajlab/hjin/MyResearch/DG-CITE_paper/bash_scripts/
 #### Specify job name
-#$ -N test
+#$ -N S1_d1_nT1
 #### Output file
-#$ -o wynton/logs/DDPM-ABL-$JOB_NAME_$JOB_ID.out
+#$ -o wynton/logs/DDPM-SIMU-$JOB_NAME_$JOB_ID.out
 #### Error file
-#$ -e wynton/logs/DDPM-ABL-$JOB_NAME_$JOB_ID.err
+#$ -e wynton/logs/DDPM-SIMU-$JOB_NAME_$JOB_ID.err
 #### memory per core
 #$ -l mem_free=2G
 #### number of cores 
-#$ -pe smp 10
+#$ -pe smp 40
 #### Maximum run time 
 #$ -l h_rt=72:00:00
 #### job requires up to 2 GB local space
@@ -29,7 +29,8 @@
 ### #$ -l gpu_mem=12000M
 
 echo "Starting running"
+echo $1 $2
 
-#singularity exec ~/MyResearch/dg-cite_latest.sif python -u ../python_scripts/run_ddpm_ablation_PCP.py --setting setting3 --d 100 --n 3000 --epoch 4000 --early_stop 1
+#singularity exec ~/MyResearch/dg-cite_latest.sif python -u ../python_scripts/simu_lei.py --setting setting1 --d 10 --n 3000 --epoch 3000 --early_stop 0 --n_T 100
 
 [[ -n "$JOB_ID" ]] && qstat -j "$JOB_ID"

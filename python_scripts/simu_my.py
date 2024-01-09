@@ -13,7 +13,7 @@ sys.path.append("../mypkg")
 
 from constants import RES_ROOT 
 from utils.misc import  save_pkl 
-from data_gen_utils.data_gen import get_simu_data
+from data_gen_utils.data_gen_my import get_simu_data
 from utils.utils import MyDataSet, get_idx_sets
 from demo_settings import simu_settings
 from CQR import get_CQR_CIs, boosting_pred, boosting_logi
@@ -30,7 +30,7 @@ from pprint import pprint
 from copy import deepcopy
 
 import argparse
-parser = argparse.ArgumentParser(description='run simu under causal context for lei setting')
+parser = argparse.ArgumentParser(description='run simu under causal context for my setting')
 parser.add_argument('-s', '--setting', type=str, default="setting1", help='the simu setting') 
 parser.add_argument('--d', type=int, default=0, help='num of features') 
 parser.add_argument('--n', type=int, default=0, help='sample size') 
@@ -62,7 +62,7 @@ params.df_dtype = torch.float32
 params.device="cpu"
 params.n_jobs = 1
 params.verbose = False
-params.inf_bs = 250 # the inference batch in number of X, so the real bs is inf_bs x K
+params.inf_bs = 250 # the inference batch, fct x K
 
 params.ddpm_training = edict()
 # Batch size during training
@@ -94,7 +94,7 @@ params.hypo_test = edict()
 params.hypo_test.alpha = 0.05 # sig level
 
 params.prefix = ""
-params.save_dir = f"simu_{setting}_d{params.simu_setting.d}_n{params.simu_setting.n}_earlystop{params.ddpm_training.early_stop}"
+params.save_dir = f"simu_my{setting}_d{params.simu_setting.d}_n{params.simu_setting.n}_earlystop{params.ddpm_training.early_stop}"
 if not (RES_ROOT/params.save_dir).exists():
     (RES_ROOT/params.save_dir).mkdir()
 
@@ -275,8 +275,8 @@ def _main_fn(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
 #lr, n_infeat, n_T, weight_decay, n_blk
 # based on results, remove lr=0.5
 lrs = [1e-1, 1e-2]
-n_Ts = [args.n_T]
 #n_Ts = [100, 200, 400]
+n_Ts = [args.n_T]
 n_infeats = [128, 512]
 n_blks = [1, 3, 5]
 weight_decays = [1e-2]

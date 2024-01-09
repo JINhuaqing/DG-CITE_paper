@@ -13,7 +13,7 @@ sys.path.append("../mypkg")
 
 from constants import RES_ROOT 
 from utils.misc import  save_pkl 
-from data_gen_utils.data_gen import get_simu_data
+from data_gen_utils.data_gen_my import get_simu_data
 from utils.utils import MyDataSet, get_idx_sets
 from demo_settings import simu_settings
 from CQR import get_CQR_CIs, boosting_pred, boosting_logi
@@ -30,12 +30,12 @@ from pprint import pprint
 from copy import deepcopy
 
 import argparse
-parser = argparse.ArgumentParser(description='run simu under causal context for lei setting')
+parser = argparse.ArgumentParser(description='run simu under causal context for my setting')
 parser.add_argument('-s', '--setting', type=str, default="setting1", help='the simu setting') 
 parser.add_argument('--d', type=int, default=0, help='num of features') 
 parser.add_argument('--n', type=int, default=0, help='sample size') 
 parser.add_argument('--n_T', type=int, default=100, help='n_T') 
-parser.add_argument('--epoch', type=int, default=3000, help='epoch number') 
+parser.add_argument('--epoch', type=int, default=300, help='epoch number') 
 parser.add_argument('--early_stop', type=int, default=0, help='whether early stop or not') 
 args = parser.parse_args()
 
@@ -51,18 +51,18 @@ if args.d > 0:
     params.simu_setting.d = args.d
 if args.n > 0:
     params.simu_setting.n = args.n
-params.simu_setting.ntest = 1000
+params.simu_setting.ntest = 100
 pprint(params.simu_setting)
 
 
 params.nrep = 50 # num of reptition for simulation
-params.K = 40 # num of sps drawn from q(Y(1)|X)
+params.K = 10 # num of sps drawn from q(Y(1)|X)
 params.save_snapshot = 100
 params.df_dtype = torch.float32
 params.device="cpu"
-params.n_jobs = 1
+params.n_jobs = 40
 params.verbose = False
-params.inf_bs = 250 # the inference batch in number of X, so the real bs is inf_bs x K
+params.inf_bs = 100 # the inference batch, fct x K
 
 params.ddpm_training = edict()
 # Batch size during training
@@ -94,7 +94,7 @@ params.hypo_test = edict()
 params.hypo_test.alpha = 0.05 # sig level
 
 params.prefix = ""
-params.save_dir = f"simu_{setting}_d{params.simu_setting.d}_n{params.simu_setting.n}_earlystop{params.ddpm_training.early_stop}"
+params.save_dir = f"simu1_my{setting}_d{params.simu_setting.d}_n{params.simu_setting.n}_earlystop{params.ddpm_training.early_stop}fff"
 if not (RES_ROOT/params.save_dir).exists():
     (RES_ROOT/params.save_dir).mkdir()
 
@@ -114,7 +114,7 @@ def _get_name_postfix(keys, ddpm_training):
         if ddpm_training[key] >= 1:
             lst.append(f"{key}-{str(ddpm_training[key])}")
         else:
-            lst.append(f"{key}--{str(ddpm_training[key]).split('.')[-1]}")
+            lst.append(f"{key}--{str(params.ddpm_training[key]).split('.')[-1]}")
     return "_".join(lst)
 pprint(params)
 
@@ -235,18 +235,18 @@ def _main_fn(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
         # results under the final model
         ddpm = myddpm.ddpm
         ddpm.eval()
-        #res_all.DDPM = _inner_fn(test_X, test_Y, ddpm)
+        res_all.DDPM = _inner_fn(test_X, test_Y, ddpm)
         res_all.DDIM = _inner_fn(test_X, test_Y, ddpm, gen_type="ddim")
-        #res_all.DDPM_val = _inner_fn(val_X, val_Y, ddpm)
+        res_all.DDPM_val = _inner_fn(val_X, val_Y, ddpm)
         res_all.DDIM_val = _inner_fn(val_X, val_Y, ddpm, gen_type="ddim")
             
             
         # results under the best model in terms of the error from val set
         ddpm = myddpm.get_opt_model()
         ddpm.eval()
-        #res_all.DDPM_sel = _inner_fn(test_X, test_Y, ddpm)
+        res_all.DDPM_sel = _inner_fn(test_X, test_Y, ddpm)
         res_all.DDIM_sel = _inner_fn(test_X, test_Y, ddpm, gen_type="ddim")
-        #res_all.DDPM_sel_val = _inner_fn(val_X, val_Y, ddpm)
+        res_all.DDPM_sel_val = _inner_fn(val_X, val_Y, ddpm)
         res_all.DDIM_sel_val = _inner_fn(val_X, val_Y, ddpm, gen_type="ddim")
             
             
@@ -264,6 +264,7 @@ def _main_fn(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
         res_all.CQR = (prb_Y1_cqr, mlen_cqr)
         save_pkl((RES_ROOT/params.save_dir)/f"rep_{rep_ix}_{post_fix}_res.pkl", res_all, is_force=True)
         all_models = list(myddpm.save_dir.glob(f"{myddpm.prefix}ddpm_epoch*.pth"))
+        print(all_models)
         [m.unlink() for m in all_models]
     else:
         res_all = edict()
@@ -275,8 +276,8 @@ def _main_fn(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
 #lr, n_infeat, n_T, weight_decay, n_blk
 # based on results, remove lr=0.5
 lrs = [1e-1, 1e-2]
-n_Ts = [args.n_T]
 #n_Ts = [100, 200, 400]
+n_Ts = [args.n_T]
 n_infeats = [128, 512]
 n_blks = [1, 3, 5]
 weight_decays = [1e-2]
@@ -285,7 +286,7 @@ all_coms = product(n_Ts, n_infeats, n_blks, lrs, weight_decays, range(params.nre
 n_coms = params.nrep * len(lrs) * len(n_Ts) * len(n_infeats) * len(n_blks) * len(weight_decays)
 
 
-with Parallel(n_jobs=35) as parallel:
+with Parallel(n_jobs=1) as parallel:
     test_ress = parallel(delayed(_main_fn)(rep_ix, params=params, 
                                                   lr=lr, n_T=n_T, n_infeat=n_infeat, 
                                                   weight_decay=weight_decay, n_blk=n_blk) 
