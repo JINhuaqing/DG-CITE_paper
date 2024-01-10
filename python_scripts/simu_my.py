@@ -157,17 +157,18 @@ def _main_fn(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
         cal_idxs, val_idxs, tr_idxs = get_idx_sets(all_idxs=np.where(data_train.T)[0], 
                                                        ratios = [params.simu_setting.cal_ratio, params.simu_setting.val_ratio])
                 
-        # get psfun
+        # get wsfun, note that ws is 1/ps
         psY = data_train.T.astype(int)
         psX = data_train.X
         fit_res = boosting_logi(psY, psX);
-        def psfun(X):
+        def wsfun(X):
+            eps = 1e-10
             if isinstance(X, torch.Tensor):
                 X = X.cpu().numpy()
             if X.ndim == 1:
                 X = X.reshape(1, -1)
-            est_ps = boosting_pred(X, fit_res)
-            return torch.tensor(est_ps, dtype=params.df_dtype).to(device=params.device)
+            est_ws = 1/(boosting_pred(X, fit_res) + eps)
+            return torch.tensor(est_ws, dtype=params.df_dtype).to(device=params.device)
             
         
         cal_X = torch.tensor(data_train.X[cal_idxs], dtype=params.df_dtype)
@@ -199,7 +200,7 @@ def _main_fn(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
         def _inner_fn(X, Y, ddpm, gen_type="ddpm"):
             wcf = WeightedConformalInference(cal_X, 
                                              cal_Y,
-                                             ddpm, ws_fn=psfun, verbose=1, 
+                                             ddpm, ws_fn=wsfun, verbose=1, 
                                              gen_type=gen_type,
                                              seed=manualSeed,
                                              n_jobs=params.n_jobs,
@@ -235,18 +236,18 @@ def _main_fn(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
         # results under the final model
         ddpm = myddpm.ddpm
         ddpm.eval()
-        #res_all.DDPM = _inner_fn(test_X, test_Y, ddpm)
+        res_all.DDPM = _inner_fn(test_X, test_Y, ddpm)
         res_all.DDIM = _inner_fn(test_X, test_Y, ddpm, gen_type="ddim")
-        #res_all.DDPM_val = _inner_fn(val_X, val_Y, ddpm)
+        res_all.DDPM_val = _inner_fn(val_X, val_Y, ddpm)
         res_all.DDIM_val = _inner_fn(val_X, val_Y, ddpm, gen_type="ddim")
             
             
         # results under the best model in terms of the error from val set
         ddpm = myddpm.get_opt_model()
         ddpm.eval()
-        #res_all.DDPM_sel = _inner_fn(test_X, test_Y, ddpm)
+        res_all.DDPM_sel = _inner_fn(test_X, test_Y, ddpm)
         res_all.DDIM_sel = _inner_fn(test_X, test_Y, ddpm, gen_type="ddim")
-        #res_all.DDPM_sel_val = _inner_fn(val_X, val_Y, ddpm)
+        res_all.DDPM_sel_val = _inner_fn(val_X, val_Y, ddpm)
         res_all.DDIM_sel_val = _inner_fn(val_X, val_Y, ddpm, gen_type="ddim")
             
             
@@ -274,7 +275,8 @@ def _main_fn(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
 
 #lr, n_infeat, n_T, weight_decay, n_blk
 # based on results, remove lr=0.5
-lrs = [1e-1, 1e-2]
+lrs = [1e-2]
+#lrs = [1e-1, 1e-2]
 #n_Ts = [100, 200, 400]
 n_Ts = [args.n_T]
 n_infeats = [128, 512]
