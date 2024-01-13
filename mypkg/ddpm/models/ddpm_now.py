@@ -185,7 +185,7 @@ class DDPM(nn.Module):
     def get_num_params(self):
         num = sum(p.numel() for p in self.parameters())
         print(f"The num of params is {num/1e6:.2f}m. ")
-    def forward(self, x, c, is_test=False):
+    def forward(self, x, c):
         """
         this method is used in training, so samples t and noise randomly
         args:
