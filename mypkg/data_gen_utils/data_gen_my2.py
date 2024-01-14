@@ -41,25 +41,28 @@ def taufun(X):
     numpy.ndarray: Array of tauv values calculated based on the input X.
     """
     _f = lambda x: 2/(1+np.exp(-12*(x-0.5)));
-    _f2 = lambda x: 4*x**2 + 1
-    _f3 = lambda x: np.exp(x**3 - 1)
+    _f2 = lambda x: 4*(x-0)**2 + 1
+    _f3 = lambda x: np.exp((x-0)**3 - 1)
     
     _, d = X.shape
     d1 = d2 = int(d/4)
     d3 = d - d1 - d2
     vec1 = np.zeros(d)
-    vec1[:d1] = np.linspace(1, 10, d1) * ((-1)**np.arange(d1))
+    vec1[:d1] = np.linspace(1, 10, d1) * ((1)**np.arange(d1))
     vec1 = vec1/np.abs(vec1).sum()
+
     vec2 = np.zeros(d)
-    vec2[:d2] = np.linspace(1, 10, d2) * ((-1)**np.arange(d2))
+    vec2[:d2] = np.linspace(1, 10, d2) * ((1)**np.arange(d2))
     vec2 = vec2/np.abs(vec2).sum()
 
     vec3 = np.zeros(d)
-    vec3[:d3] = np.linspace(1, 10, d3) * ((-1)**np.arange(d3))
+    vec3[:d3] = np.linspace(1, 10, d3) * ((1)**np.arange(d3))
     vec3 = vec3/np.abs(vec3).sum()
     
-    tauv = _f(X@vec1) * _f2(X@vec2) + _f3(X@vec3);
+    _minmax = lambda x: (x-x.min())/(x.max()-x.min())
+    tauv = _f(_minmax(X@vec1)) * _f2(_minmax(X@vec2)) + _f3(_minmax(X@vec3));
     return tauv
+
 def psfun(X):
     """
     Calculate the probability density function of a beta distribution.
