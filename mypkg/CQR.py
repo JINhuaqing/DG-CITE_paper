@@ -122,3 +122,36 @@ def boosting_pred(X_test, fit_res):
     XtestR = array2d2Robj(X_test);
     pred_probs = np.array(r["boosting.pred"](XtestR, fit_res));
     return pred_probs
+
+
+r("""
+get_CI_cf <- function(X, Y, T, Xtest, seed){
+    set.seed(seed)
+    fit <- grf::causal_forest(X, Y, T)
+    pred <- predict(fit, Xtest, estimate.variance = TRUE)
+    CI <- data.frame(low = pred[, 1] - 1.96 * sqrt(pred[, 2]),
+                     high = pred[, 1] + 1.96 * sqrt(pred[, 2]))
+    return(CI)
+}
+""")
+
+def get_CF_CIs(X, Y, T, Xtest, seed=0):
+    """
+    Calculate the 95\% confidence intervals for the counterfactual predictions with causal forest
+
+    Parameters:
+    X (numpy.ndarray): The input features of the training data. n x d
+    Y (numpy.ndarray): The target values of the training data. n 
+    T (numpy.ndarray): The treatment values of the training data. n 
+    Xtest (numpy.ndarray): The input features of the test data. ntest x d
+    seed (int): The seed value for random number generation.
+
+    Returns:
+    numpy.ndarray: The confidence intervals for the counterfactual predictions.
+    """
+    XR = array2d2Robj(X);
+    XtestR = array2d2Robj(Xtest);
+    TR = robj.FloatVector(T);
+    YR = robj.FloatVector(Y);
+    CIs = np.array(r["get_CI_cf"](XR, YR, TR, XtestR, seed=seed)).T
+    return CIs

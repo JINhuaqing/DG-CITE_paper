@@ -52,7 +52,7 @@ class WeightedConformalInference():
         gen_params = _update_params(gen_params, gen_parmas_def, logger)
         gen_params["gen_type"] = gen_type.lower()
         logger.info(f"wcf params is {wcf_params}")
-        logger.info(f"wcf params is {gen_params}")
+        logger.info(f"gen params is {gen_params}")
         
         
         if ws_fn is None:
