@@ -16,9 +16,10 @@ from utils.misc import  save_pkl
 from data_gen_utils.data_gen_my2 import get_simu_data
 from utils.utils import MyDataSet, get_idx_sets
 from demo_settings import simu_settings
-from CQR import get_CQR_CIs, boosting_pred, boosting_logi
+from CQR import get_CQR_CIs, boosting_pred, boosting_logi, get_CF_CIs
 from ddpm.train_ddpm_now import TrainDDPM
 from weighted_conformal_inference import WeightedConformalInference
+from naive_sample import NaiveSample
 
 import torch
 import numpy as np
@@ -74,7 +75,7 @@ params.ddpm_training.n_infeat = 128
 params.ddpm_training.lr = 0.001
 params.ddpm_training.lr_gamma = 0.7
 params.ddpm_training.lr_step = 1000
-params.ddpm_training.test_intv = 100
+params.ddpm_training.test_intv = 500
 params.ddpm_training.n_T = 400 # 100
 params.ddpm_training.n_upblk = 1
 params.ddpm_training.n_downblk = 1
@@ -139,21 +140,20 @@ def _main_fn(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
     torch.set_default_device(params.device)
     
     fil_name = (RES_ROOT/params.save_dir)/f"rep_{rep_ix}_{post_fix}_res.pkl"
+    ofil_name = (RES_ROOT/params.save_dir)/f"rep_{rep_ix}_other_res.pkl"
         
-        
-    if not fil_name.exists():
-        data_train = get_simu_data(n=params.simu_setting.n, 
+    data_train = get_simu_data(n=params.simu_setting.n, 
                                    d=params.simu_setting.d, 
                                    is_homo=params.simu_setting.is_homo, 
                                    rho=params.simu_setting.rho, 
                                    err_type=params.simu_setting.err_type);
-        data_test = get_simu_data(n=params.simu_setting.ntest, 
+    data_test = get_simu_data(n=params.simu_setting.ntest, 
                                    d=params.simu_setting.d, 
                                    is_homo=params.simu_setting.is_homo, 
                                    rho=params.simu_setting.rho,
                                    err_type=params.simu_setting.err_type);
         
-        
+    if not fil_name.exists():
         cal_idxs, val_idxs, tr_idxs = get_idx_sets(all_idxs=np.where(data_train.T)[0], 
                                                        ratios = [params.simu_setting.cal_ratio, params.simu_setting.val_ratio])
                 
@@ -241,15 +241,37 @@ def _main_fn(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
         #res_all.DDPM_val = _inner_fn(val_X, val_Y, ddpm)
         res_all.DDIM_val = _inner_fn(val_X, val_Y, ddpm, gen_type="ddim")
             
+        # naive way
+        def _naive_sps(tX, tY, ddpm):
+            sampler = NaiveSample(ddpm, gen_type="ddim", verbose=params.verbose, device=params.device, gen_params={})
+            if not isinstance(tY, np.ndarray):
+                tY = tY.cpu().numpy()
+            predYs = sampler.gen_fn_wrapper(tX, nsps=200, inf_bs=50, seed=manualSeed, n_jobs=params.n_jobs);
+            naive_CIs = torch.quantile(predYs, torch.tensor([params.hypo_test.alpha/2, 1-params.hypo_test.alpha/2], 
+                                                        dtype=params.df_dtype), axis=1).T.cpu().numpy();
+            mlen_naive = np.median(naive_CIs[:, 1] -  naive_CIs[:, 0])
+            prb_Y1_naive = np.bitwise_and(tY>naive_CIs[:, 0], tY<naive_CIs[:, 1]).mean()
+            return (prb_Y1_naive, mlen_naive)
+        res_all.naive = _naive_sps(test_X, test_Y, ddpm)
+        res_all.naive_val = _naive_sps(val_X, val_Y, ddpm)
             
-        # results under the best model in terms of the error from val set
         for model_ix in range(params.save_snapshot, params.ddpm_training.n_epoch, params.save_snapshot):
             ddpm = myddpm.get_model(model_ix)
             ddpm.eval()
             res_all[f"DDIM_ep{model_ix}"] = _inner_fn(test_X, test_Y, ddpm, gen_type="ddim")
             res_all[f"DDIM_ep{model_ix}_val"] = _inner_fn(val_X, val_Y, ddpm, gen_type="ddim")
+            res_all[f"naive_ep{model_ix}"] = _naive_sps(test_X, test_Y, ddpm)
+            res_all[f"naive_ep{model_ix}_val"] = _naive_sps(val_X, val_Y, ddpm)
+        save_pkl((RES_ROOT/params.save_dir)/fil_name, res_all, is_force=True)
+        all_models = list(myddpm.save_dir.glob(f"{myddpm.prefix}ddpm_epoch*.pth"))
+        [m.unlink() for m in all_models]
+    else:
+        print(f"As {fil_name} exists, we do not do anything")
             
             
+    if not ofil_name.exists():
+        ## results from other methods
+        res_other = edict()
         # results from CQR
         CQR_CIs = get_CQR_CIs(X=data_train.X, Y=data_train.Y, 
                               T=data_train.T, Xtest=data_test.X, 
@@ -260,14 +282,19 @@ def _main_fn(rep_ix, params, lr, n_infeat, n_T, weight_decay, n_blk):
         mlen_cqr = np.median(CQR_CIs[:, 1] -  CQR_CIs[:, 0])
         prb_Y1_cqr = np.bitwise_and(data_test.Y1>CQR_CIs[:, 0], data_test.Y1<CQR_CIs[:, 1]).mean()
         #prb_tau_cqr = np.bitwise_and(data_test.tau>CQR_CIs[:, 0], data_test.tau<CQR_CIs[:, 1]).mean()
-        
-        res_all.CQR = (prb_Y1_cqr, mlen_cqr)
-        save_pkl((RES_ROOT/params.save_dir)/f"rep_{rep_ix}_{post_fix}_res.pkl", res_all, is_force=True)
-        all_models = list(myddpm.save_dir.glob(f"{myddpm.prefix}ddpm_epoch*.pth"))
-        [m.unlink() for m in all_models]
+        res_other.CQR = (prb_Y1_cqr, mlen_cqr)
+
+        # results from CF
+        CF_CIs = get_CF_CIs(X=data_train.X, Y=data_train.Y, 
+                              T=data_train.T, Xtest=data_test.X, 
+                              seed=manualSeed)
+        mlen_cf = np.median(CF_CIs[:, 1] -  CF_CIs[:, 0])
+        prb_Y1_cf = np.bitwise_and(data_test.Y1>CF_CIs[:, 0], data_test.Y1<CF_CIs[:, 1]).mean()
+        res_other.CF= (prb_Y1_cf, mlen_cf)
+
+        save_pkl((RES_ROOT/params.save_dir)/ofil_name, res_other, is_force=True)
     else:
-        res_all = edict()
-        print(f"As {fil_name} exists, we do not do anything")
+        print(f"As {ofil_name} exists, we do not do anything")
     return None
 
 
