@@ -306,15 +306,15 @@ lrs = [args.lr]
 #lrs = [1e-1, 1e-2]
 n_Ts = [args.n_T]
 #n_Ts = [100, 200, 400]
-n_infeats = [128, 512]
-n_blks = [1, 3, 5]
+n_infeats = [128, 256]
+n_blks = [1, 3]
 weight_decays = [1e-2]
 from itertools import product
 all_coms = product(n_Ts, n_infeats, n_blks, lrs, weight_decays, range(params.nrep))
 n_coms = params.nrep * len(lrs) * len(n_Ts) * len(n_infeats) * len(n_blks) * len(weight_decays)
 
 
-with Parallel(n_jobs=30) as parallel:
+with Parallel(n_jobs=35) as parallel:
     test_ress = parallel(delayed(_main_fn)(rep_ix, params=params, 
                                                   lr=lr, n_T=n_T, n_infeat=n_infeat, 
                                                   weight_decay=weight_decay, n_blk=n_blk) 

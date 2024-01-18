@@ -8,7 +8,7 @@
 ##### set job working directory
 #$ -wd  /wynton/home/rajlab/hjin/MyResearch/DG-CITE_paper/bash_scripts/
 #### Specify job name
-#$ -N S1_d1_nT1
+#$ -N myS5_test
 #### Output file
 #$ -o wynton/logs/DDPM-SIMU-$JOB_NAME_$JOB_ID.out
 #### Error file
@@ -29,8 +29,7 @@
 ### #$ -l gpu_mem=12000M
 
 echo "Starting running"
-echo $1 $2
 
-#singularity exec ~/MyResearch/dg-cite_latest.sif python -u ../python_scripts/simu_lei.py --setting setting1 --d 10 --n 3000 --epoch 3000 --early_stop 0 --n_T 100
+singularity exec ~/MyResearch/dg-cite_latest.sif python -u ../python_scripts/test.py --setting setting5 --d 1000 --n 3000 --epoch 10000 --early_stop 0 --n_T 400
 
 [[ -n "$JOB_ID" ]] && qstat -j "$JOB_ID"
