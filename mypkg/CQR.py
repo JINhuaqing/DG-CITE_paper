@@ -63,6 +63,51 @@ def get_CQR_CIs(X, Y, T, Xtest, nav=0, alpha=0.05, fyx_est="quantBoosting", esti
     return CIs
 
 
+r("""
+CQR_naive_ITE_CI <- function(X, Y, T, Xtest, alpha = 0.05, fyx_est="quantBoosting", seed=0){
+    set.seed(seed)
+    CIfun <- cfcausal::conformalIte(X, Y, T,
+                                    alpha,
+                                    algo = "naive",
+                                    quantiles = c(alpha/2, 1-alpha/2), 
+                                    outfun=fyx_est)
+    CI <- CIfun(Xtest)
+    return(CI)
+}
+""")
+
+def get_CQR_ITE_CIs(X, Y, T, Xtest, alpha=0.05, fyx_est="quantBoosting", seed=0):
+    """
+    Calculates the conditional quantile regression confidence intervals.
+
+    Parameters:
+    - X: array-like, shape (n_samples, n_features)
+        The input features.
+    - Y: array-like, shape (n_samples,)
+        The target variable.
+    - T: array-like, shape (n_samples,)
+        The treatment variable.
+    - Xtest: array-like, shape (n_test_samples, n_features)
+        The test input features.
+    - alpha: float, optional (default=0.05)
+        The significance level for calculating the confidence intervals.
+    - fyx_est: str, optional (default="quantBoosting")
+        The method for estimating the conditional quantile function.
+    - seed: int, optional (default=0)
+        The random seed for reproducibility.
+
+    Returns:
+    - CIs: array-like, shape (n_test_samples, 2)
+        The lower and upper bounds of the confidence intervals for each test sample.
+    """
+    YR = robj.FloatVector(Y);
+    TR = robj.FloatVector(T);
+    XR = array2d2Robj(X);
+    XtestR = array2d2Robj(Xtest);
+    CIs = r["CQR_naive_ITE_CI"](XR, YR, TR, XtestR,  alpha=alpha, fyx_est=fyx_est, seed=seed) 
+    CIs = np.array(CIs).T;
+    return CIs
+
 
 
 r("""
@@ -125,17 +170,18 @@ def boosting_pred(X_test, fit_res):
 
 
 r("""
-get_CI_cf <- function(X, Y, T, Xtest, seed){
+get_CI_cf <- function(X, Y, T, Xtest, alpha, seed){
     set.seed(seed)
     fit <- grf::causal_forest(X, Y, T)
     pred <- predict(fit, Xtest, estimate.variance = TRUE)
-    CI <- data.frame(low = pred[, 1] - 1.96 * sqrt(pred[, 2]),
-                     high = pred[, 1] + 1.96 * sqrt(pred[, 2]))
+    cutoff <- qnorm(alpha / 2, lower.tail = FALSE)
+    CI <- data.frame(low = pred[, 1] - cutoff * sqrt(pred[, 2]),
+                     high = pred[, 1] + cutoff * sqrt(pred[, 2]))
     return(CI)
 }
 """)
 
-def get_CF_CIs(X, Y, T, Xtest, seed=0):
+def get_CF_CIs(X, Y, T, Xtest, alpha=0.05, seed=0):
     """
     Calculate the 95\% confidence intervals for the counterfactual predictions with causal forest
 
@@ -153,5 +199,5 @@ def get_CF_CIs(X, Y, T, Xtest, seed=0):
     XtestR = array2d2Robj(Xtest);
     TR = robj.FloatVector(T);
     YR = robj.FloatVector(Y);
-    CIs = np.array(r["get_CI_cf"](XR, YR, TR, XtestR, seed=seed)).T
+    CIs = np.array(r["get_CI_cf"](XR, YR, TR, XtestR, alpha=alpha, seed=seed)).T
     return CIs

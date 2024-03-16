@@ -27,6 +27,8 @@ class WeightedConformalInference():
             cal_X (tensor, n_cal x d):  The covariates of the calibration set. 
             cal_Y (tensor, n_cal):  The response of the calibration set. 
             gen_fn (fn): A generating function f(Y|X), given X, it can produce predicted Y.
+            inf_bs (int): The inference batch size, for DDIM or DDPM, 40 is a good number; 
+                            for other gen_type like MLP, it can be as large as 512 (but now not used)
             ws_fn (fn): A weights function to assign weight to each obs based on X. If None, all weights are 1.
                         Only need it when we conduct causal inference.
         """
@@ -46,6 +48,10 @@ class WeightedConformalInference():
                 "ddim_timesteps": 50, 
                 "ddim_eta": 0
             })
+        elif gen_type.lower().startswith("reg"):
+            gen_parmas_def = edict({
+            })
+            wcf_params_def["cf_type"] = "naive"
         
         
         wcf_params = _update_params(wcf_params, wcf_params_def, logger)
@@ -71,6 +77,13 @@ class WeightedConformalInference():
                                           ddim_timesteps=gen_params.ddim_timesteps,
                                           ddim_eta=gen_params.ddim_eta,
                                           device=device)
+        elif gen_params.gen_type.startswith("reg"):
+            def _gen_fn(X):
+                with torch.no_grad():
+                    gen_fn.eval()
+                    Y = gen_fn(X)
+                return Y.to(device).squeeze()
+            
         else:
             raise NotImplementedError(f'No supported.')
         
@@ -90,6 +103,7 @@ class WeightedConformalInference():
         
         self.Es = None
         self.ws = None
+
         
     def gen_fn_wrapper(self, X, nsps=1, inf_bs=40, seed=0, n_jobs=1):
         """A simple wrapper of original gen_fn function
@@ -136,6 +150,13 @@ class WeightedConformalInference():
         Es = torch.abs(cal_Y_preds-self.cal_Y[:, None]).min(axis=1)[0];
         return Es
     
+    def naive_dist_fn(self):
+        assert not self.gen_params.gen_type.startswith("ddpm")
+        assert not self.gen_params.gen_type.startswith("ddim")
+        cal_Y_preds = self._gen_fn(self.cal_X)
+        Es = torch.abs(cal_Y_preds.squeeze()-self.cal_Y);
+        return Es
+    
     def PCP_intv_fn(self, Y_hat, qvs):
         intvs_raw = torch.stack([Y_hat - qvs[:, None], Y_hat + qvs[:, None]]);
         intvs_raw.transpose_(1, 0);
@@ -143,9 +164,22 @@ class WeightedConformalInference():
         intvs = [merge_intervals(intv_raw.numpy()) for intv_raw in intvs_raw]
         return intvs
     
+    def naive_intv_fn(self, Y_hat, qvs):
+        intvs_raw = torch.stack([Y_hat-qvs, Y_hat+qvs]).T
+        intvs_raw = list(intvs_raw.numpy())
+        intvs = [intv[None] for intv in intvs_raw]
+        return intvs
+    def get_intvs(self, Y_hat, qvs):
+        if self.wcf_params.cf_type.startswith("PCP"):
+            return self.PCP_intv_fn(Y_hat, qvs)
+        else:
+            return self.naive_intv_fn(Y_hat, qvs)
+    
     def get_dist(self):
         if self.wcf_params.cf_type.startswith("PCP"):
             self.Es = self.PCP_dist_fn(K=self.wcf_params.K)
+        elif self.wcf_params.cf_type.startswith("naive"):
+            self.Es = self.naive_dist_fn()
         else:
             pass
         return self.Es
@@ -154,11 +188,6 @@ class WeightedConformalInference():
         self.ws = self.ws_fn(self.cal_X)
         return self.ws 
     
-    def get_intvs(self, Y_hat, qvs):
-        if self.wcf_params.cf_type.startswith("PCP"):
-            return self.PCP_intv_fn(Y_hat, qvs)
-        else:
-            pass
     
     def __call__(self, X, alpha=0.05):
         """Do conformal inference
@@ -172,7 +201,11 @@ class WeightedConformalInference():
             self.get_dist()
         if X.ndim == 1:
             X = X.reshape(1, -1)
-        Y_hat = self.gen_fn_wrapper(X, 
+        
+        if self.gen_params.gen_type.startswith("reg"):
+            Y_hat = self._gen_fn(X)
+        else:
+            Y_hat = self.gen_fn_wrapper(X, 
                                     nsps=self.wcf_params.K, 
                                     inf_bs=self.inf_bs, 
                                     seed=self.seed, 
